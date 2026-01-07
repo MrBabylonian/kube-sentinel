@@ -1,8 +1,12 @@
 import logging
+import os
 import sys
 from typing import Any
 
 import structlog
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 def setup_logging(level: str = "INFO") -> None:
@@ -23,10 +27,12 @@ def setup_logging(level: str = "INFO") -> None:
         ),  # add timestamps to logs
     ]
 
-    # Decision: Using ConsoleRenderer for the demo (colors!),
-    # but in a real k8s pod, we would use JSONRenderer. # TODO
-    processors.append(structlog.dev.ConsoleRenderer)
-    processors.append(structlog.processors.JSONRenderer)
+    is_prod: bool = os.getenv("ENVIRONMENT", "development") == "production"
+
+    if is_prod:
+        processors.append(structlog.processors.JSONRenderer())
+    else:
+        processors.append(structlog.dev.ConsoleRenderer())
 
     structlog.configure(
         processors=processors,
