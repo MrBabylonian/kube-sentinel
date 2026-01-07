@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+# mypy cache
+.mypy_cache/
+
+# uv cache
+.uv/
