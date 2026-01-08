@@ -200,13 +200,13 @@ async def patch_deployment(
     BUT the cluster state is NOT changed.
     """
     k8s = K8sClient()
-    api_client = k8s.get_api_client()
+    api_client = await k8s.get_api_client()
     apps_v1 = client.AppsV1Api(api_client)
 
     dry_run_arg: None | Literal["All"] = "All" if dry_run else None
 
     log_event = (
-        "pathcing_deployment_dry_run"
+        "patching_deployment_dry_run"
         if dry_run
         else "patching_deployment_execute"
     )
