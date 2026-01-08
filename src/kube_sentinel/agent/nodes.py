@@ -14,7 +14,13 @@ from kube_sentinel.domain.schemas import (
     RemediationPlan,
     SreAgentState,
 )
-from kube_sentinel.k8s.tools import patch_deployment
+from kube_sentinel.k8s.tools import (
+    describe_pod,
+    get_deployment_details,
+    get_pod_logs,
+    list_pods,
+    patch_deployment,
+)
 
 load_dotenv()
 
@@ -27,12 +33,6 @@ if not GOOGLE_VERTEX_API_KEY or not GOOGLE_CLOUD_PROJECT:
         "must be set in environment variables."
     )
 
-from kube_sentinel.k8s.tools import (
-    describe_pod,
-    get_deployment_details,
-    get_pod_logs,
-    list_pods,
-)
 
 logger = structlog.get_logger()
 
@@ -85,7 +85,8 @@ llm = ChatGoogleGenerativeAI(
 async def agent_node(state: SreAgentState) -> dict[str, list[Any]]:
     """
     The Autonomous Brain.
-    It decides whether to call a READ tool (explore) or generate a RemediationPlan (solve).
+    It decides whether to call a READ tool (explore) or generate a
+    (RemediationPlan Tool).
     """
     # Defensive checks for state structure
     messages = state.get("messages")
@@ -128,9 +129,9 @@ async def agent_node(state: SreAgentState) -> dict[str, list[Any]]:
     If a patch failed validation, the error is in the history. Fix your JSON.
 """
 
-    response = await llm_with_tools.invoke(
+    response = await llm_with_tools.ainvoke(
         [SystemMessage(content=system_prompt)] + state["messages"]
-    )  # type: ignore
+    )
 
     return {"messages": [response]}
 
@@ -223,3 +224,29 @@ async def validate_node(state: SreAgentState) -> dict[str, Any]:
             "dry_run_passed": False,
             "messages": [AIMessage(f"SYSTEM: Dry run failed. {result}")],
         }
+
+
+async def remediate_node(state: SreAgentState) -> dict[str, list[AIMessage]]:
+    """The Executioner."""
+
+    if not state.get("remediation_plan"):
+        logger.error(
+            "remediate_node_no_plan", error="no remediation_plan in state"
+        )
+        raise ValueError("No remediation_plan found in state")
+
+    plan: RemediationPlan = state["remediation_plan"]  # type: ignore
+
+    logger.info("executing_fix", resource=plan.resource_name)
+
+    result = await patch_deployment(
+        deployment_name=plan.resource_name,
+        namespace=plan.namespace,
+        patch_json=plan.patch_json,
+        dry_run=False,
+    )
+    return {
+        "messages": [
+            AIMessage(content=f"SYSTEM: Remediation executed. {result}")
+        ]
+    }
