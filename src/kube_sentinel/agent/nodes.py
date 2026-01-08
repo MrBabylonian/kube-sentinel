@@ -87,15 +87,34 @@ async def agent_node(state: SreAgentState) -> dict[str, list[Any]]:
     The Autonomous Brain.
     It decides whether to call a READ tool (explore) or generate a RemediationPlan (solve).
     """
-    logger.info("agent_reasoning", history_len=len(state["messages"]))
+    # Defensive checks for state structure
+    messages = state.get("messages")
+    if not messages or not isinstance(messages, list):
+        logger.error(
+            "agent_node_invalid_state",
+            error="messages not found or not a list",
+        )
+        raise ValueError("Invalid state: messages field missing or not a list")
+
+    namespace = state.get("namespace")
+    if not namespace or not isinstance(namespace, str):
+        logger.error(
+            "agent_node_invalid_state",
+            error="namespace not found or not a string",
+        )
+        raise ValueError(
+            "Invalid state: namespace field missing or not a string"
+        )
+
+    logger.info("agent_reasoning", history_len=len(messages))
     # We bind the Read Tools AND the RemediationPlan structure.
     # We treat RemediationPlan as a tool call so the LLM can "call" it to signal completion.
 
     llm_with_tools = llm.bind_tools(READ_TOOLS + [Diagnosis, RemediationPlan])
 
-    system_prompt = """
+    system_prompt = f"""
     You are KubeSentinel, an expert autonomous SRE (Site Reliabiliy Engineer)
-        Your goal is to identify and fix issues in the '{state['namespace']}'
+        Your goal is to identify and fix issues in the '{namespace}'
         namespace.
 
     PROTOCOL:
@@ -121,15 +140,65 @@ async def validate_node(state: SreAgentState) -> dict[str, Any]:
     The Gatekeeper.
     Extracts the plan, runs a Dry Run, and reports success/failure.
     """
-    last_message = state["messages"][-1]  # last message from agent
-    tool_call = last_message.tool_calls[0]  # first tool call
+    # Defensive checks for state structure
+    messages = state.get("messages")
+    if not messages or not isinstance(messages, list):
+        logger.error(
+            "validate_node_invalid_state",
+            error="messages not found or not a list",
+        )
+        raise ValueError("Invalid state: messages field missing or not a list")
+
+    if len(messages) == 0:
+        logger.error(
+            "validate_node_empty_messages", error="no messages in state"
+        )
+        raise ValueError("Invalid state: messages list is empty")
+
+    last_message = messages[-1]  # last message from agent
+
+    # Check if last_message has tool_calls attribute
+    tool_calls = getattr(last_message, "tool_calls", None)
+    if tool_calls is None:
+        logger.error(
+            "validate_node_no_tool_calls",
+            error="last message has no tool_calls",
+        )
+        raise ValueError("Invalid message: no tool_calls attribute found")
+
+    if not tool_calls or not isinstance(tool_calls, (list, tuple)):
+        logger.error(
+            "validate_node_invalid_tool_calls",
+            error="tool_calls is empty or not a sequence",
+        )
+        raise ValueError("Invalid tool_calls: empty or not a sequence")
+
+    # Get first tool call and check if it has args
+    tool_call = tool_calls[0]
+    if not hasattr(tool_call, "args") and "args" not in tool_call:
+        logger.error("validate_node_no_args", error="tool_call has no args")
+        raise ValueError("Invalid tool_call: no args attribute found")
+
+    # Get args safely
+    args = (
+        tool_call.get("args")
+        if isinstance(tool_call, dict)
+        else getattr(tool_call, "args", None)
+    )
+    if args is None:
+        logger.error("validate_node_args_none", error="tool_call args is None")
+        raise ValueError("Invalid tool_call: args is None")
 
     # Converting args to Pydantic model
-    plan = RemediationPlan(**tool_call["args"])
+    try:
+        plan = RemediationPlan(**args)
+    except Exception as e:
+        logger.error("validate_node_pydantic_error", error=str(e), args=args)
+        raise ValueError(f"Failed to create RemediationPlan from args: {e}")
 
     logger.info(
         "validating_plan",
-        resoure=plan.resource_name,
+        resource=plan.resource_name,
         patch=json.dumps(plan.patch_json, indent=2),
     )
 
