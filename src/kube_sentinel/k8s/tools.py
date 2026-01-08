@@ -2,7 +2,8 @@
 # pyright: reportPossiblyUnboundVariable=false
 # pyright: reportOptionalMemberAccess=false
 
-from typing import Any
+import json
+from typing import Any, Literal
 
 import structlog
 from kubernetes_asyncio import client  # type: ignore
@@ -98,7 +99,7 @@ async def describe_pod(pod_name: str, namespace: str = "default") -> str:
                 state_msg = "Running"
 
             report.append(
-                f"Container: {container_info.name}, State: {state_msg if state_msg else 'N/A'} Restars: {container_info.restart_count}"  # noqa : E501
+                f"Container: {container_info.name}, State: {state_msg if state_msg else 'N/A'} Restarts: {container_info.restart_count}"  # noqa : E501
             )
 
         return "\n".join(report)
@@ -176,3 +177,65 @@ async def get_deployment_details(
             "get_deployment_details_unexpected_error", error=str(error)
         )
         return {"error": str(error)}
+
+
+async def patch_deployment(
+    deployment_name: str,
+    namespace: str,
+    patch_json: dict[str, Any],
+    dry_run: bool = False,
+) -> str:
+    """
+    Apply a JSON merge patch to a deployment.
+
+
+    This is the "Flight Simulator" mode.
+    If dry_run=True, we send the request to Kubernetes with dry_run="All".
+    The API Server runs:
+      1. Authentication
+      2. Schema Validation (Is the JSON valid?)
+      3. Admission Controllers (Is this allowed?)
+
+    If any fail, we get an error. If they pass, we get success,
+    BUT the cluster state is NOT changed.
+    """
+    k8s = K8sClient()
+    api_client = k8s.get_api_client()
+    apps_v1 = client.AppsV1Api(api_client)
+
+    dry_run_arg: None | Literal["All"] = "All" if dry_run else None
+
+    log_event = (
+        "pathcing_deployment_dry_run"
+        if dry_run
+        else "patching_deployment_execute"
+    )
+
+    logger.info(
+        log_event,
+        deployment=deployment_name,
+        patch=json.dumps(patch_json, indent=2),
+    )
+
+    try:
+        # The agent is responsible for
+        # constructing the correct nested structure
+
+        await apps_v1.patch_namespaced_deployment(
+            name=deployment_name,
+            namespace=namespace,
+            body=patch_json,
+            dry_run=dry_run_arg,
+        )  # pyright: ignore
+
+        if dry_run:
+            return "Dry run successful: Patch is valid and can be applied."
+        else:
+            return "Patch applied successfully."
+
+    except ApiException as error:
+        logger.error("patch_deployment_failed", error=str(error))
+        return f"Error patching deployment: {error}"
+    except Exception as error:
+        logger.exception("patch_deployment_unexpected_error", error=str(error))
+        return f"Unexpected error: {error}"

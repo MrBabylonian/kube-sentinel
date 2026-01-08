@@ -1,5 +1,3 @@
-import asyncio
-
 import structlog
 from kubernetes_asyncio import client, config  # type: ignore
 from kubernetes_asyncio.client import ApiClient  # type: ignore
@@ -34,7 +32,7 @@ class K8sClient:
         if self._api_client is None:
             try:
                 # STRATEGY 1: Local development
-                await config.load_kube_config()  # (async load)
+                await config.load_kube_config()
                 logger.info(
                     "auth_success", method="kube_config", context="local"
                 )
@@ -43,7 +41,7 @@ class K8sClient:
                     # STRATEGY 2: Production (In-cluster)
                     # When running as a Pod
                     # K8s injects a Service Account token.
-                    await asyncio.to_thread(config.load_incluster_config)
+                    await config.load_incluster_config()  # pyright: ignore
                     logger.info(
                         "auth_success", method="in_cluster", context="remote"
                     )
