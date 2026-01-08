@@ -77,9 +77,7 @@ async def describe_pod(pod_name: str, namespace: str = "default") -> str:
     logger.info("describing_pod", pod_name=pod_name, namespace=namespace)
 
     try:
-        pod = await v1.read_namespaced_pod(
-            name=pod_name, namespace=namespace, async_req=True
-        )  # pyright: ignore
+        pod = await v1.read_namespaced_pod(name=pod_name, namespace=namespace)  # pyright: ignore
 
         statuses = (
             pod.status.container_statuses
@@ -93,13 +91,15 @@ async def describe_pod(pod_name: str, namespace: str = "default") -> str:
             if container_info.state.terminated:
                 state_msg = f"Terminated (Reason: {container_info.state.terminated.reason}, Exit Code: {container_info.state.terminated.exit_code})"  # noqa: E501
             elif container_info.state.waiting:
-                state_msg = f"Waiting (Reason: {container_info.state.waiting.reason})"
+                state_msg = (
+                    f"Waiting (Reason: {container_info.state.waiting.reason})"
+                )
             elif container_info.state.running:
                 state_msg = "Running"
 
-        report.append(
-            f"Container: {container_info.name}, State: {state_msg if state_msg else 'N/A'} Restars: {container_info.restart_count}"
-        )
+            report.append(
+                f"Container: {container_info.name}, State: {state_msg if state_msg else 'N/A'} Restars: {container_info.restart_count}"  # noqa : E501
+            )
 
         return "\n".join(report)
     except ApiException as error:
