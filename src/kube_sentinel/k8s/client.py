@@ -1,19 +1,20 @@
 import structlog
-from kubernetes import client, config
-from kubernetes.client import ApiClient
+from kubernetes_asyncio import client, config  # type: ignore
+from kubernetes_asyncio.client import ApiClient  # type: ignore
 
 logger = structlog.getLogger()
 
 
 class K8sClient:
     """
-    A Singleton wrapper for Kubernetes authentication.
+    Async singleton wrapper for Kubernetes authentication.
     """
+
+    # Constructors (__init__) cannot be async.
+    # So I use a lazy-loading pattern in 'get_api_client'
 
     _instance = None
     _api_client: ApiClient | None = None
-    _core_v1_api: client.CoreV1Api | None = None
-    _apps_v1_api: client.AppsV1Api | None = None
 
     def __new__(cls) -> "K8sClient":
         """
@@ -23,7 +24,7 @@ class K8sClient:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def get_api_client(self) -> ApiClient:
+    async def get_api_client(self) -> ApiClient:
         """
         Returns the active Kubernetes API client, initializing it if necessary.
         """
@@ -31,38 +32,35 @@ class K8sClient:
         if self._api_client is None:
             try:
                 # STRATEGY 1: Local development
-                config.load_kube_config()
+                await config.load_kube_config()  # (async load)
                 logger.info(
                     "auth_success", method="kube_config", context="local"
                 )
             except config.ConfigException:
                 try:
                     # STRATEGY 2: Production (In-cluster)
-                    # When running as a Pod, K8s injects a Service Account token.
-                    config.load_incluster_config()
+                    # When running as a Pod
+                    # K8s injects a Service Account token.
+                    config.load_incluster_config()  # sync load. I/O blocking.
                     logger.info(
                         "auth_success", method="in_cluster", context="remote"
                     )
                 except config.ConfigException as error:
                     logger.exception("auth_failed", error=str(error))
                     raise
+                except Exception as error:
+                    logger.exception(
+                        "k8s_auth_unexpected_error", error=str(error)
+                    )
+                    raise
             self._api_client = client.ApiClient()
         return self._api_client
 
-    @property
-    def core_v1(self) -> client.CoreV1Api:
+    async def close(self) -> None:
         """
-        CoreV1 handles 'primitive' resources: Pods, Services, ConfigMaps, Secrets.
+        Manually close the API client and reset the singleton.
         """
-        if self._core_v1_api is None:
-            self._core_v1_api = client.CoreV1Api(self.get_api_client)
-        return self._core_v1_api
-
-    @property
-    def apps_v1(self) -> client.AppsV1Api:
-        """
-        AppsV1 handles 'workload' resources: Deployments, StatefulSets, DaemonSets.
-        """
-        if self._apps_v1_api is None:
-            self._apps_v1_api = client.AppsV1Api(self.get_api_client)
-        return self._apps_v1_api
+        if self._api_client:
+            await self._api_client.close()
+            self._api_client = None
+        self._instance = None
