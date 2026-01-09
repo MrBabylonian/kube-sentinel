@@ -1,6 +1,7 @@
 from typing import Any, Literal
 
 import structlog
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.constants import END
 from langgraph.graph.state import CompiledStateGraph, StateGraph
 from langgraph.prebuilt.tool_node import ToolNode
@@ -11,7 +12,7 @@ from kube_sentinel.agent.nodes import (
     remediate_node,
     validate_node,
 )
-from kube_sentinel.domain.schemas import SreAgentState
+from kube_sentinel.domain.schemas import Diagnosis, SreAgentState
 
 logger = structlog.getLogger()
 
@@ -46,7 +47,10 @@ def route_agent_action(
     # Note: Depending on the LLM, it might queue multiple calls.
     # I look at the first one to decide the "Phase".
     tool_call = last_message.tool_calls[0]
-    tool_name = tool_call.get("name")
+    try:
+        tool_name = tool_call.get("name")
+    except AttributeError:
+        tool_name = getattr(tool_call, "name", None)
 
     if tool_name == "RemediationPlan":
         return "validate"
@@ -79,16 +83,35 @@ def build_graph() -> CompiledStateGraph[Any]:
     workflow.add_node("agent", agent_node)
     workflow.add_node("validate", validate_node)
     workflow.add_node("remediate", remediate_node)
-    workflow.add_node("tools", ToolNode(tools=READ_TOOLS))
+
+    all_tools = READ_TOOLS + [Diagnosis]
+    workflow.add_node("tools", ToolNode(tools=all_tools))
 
     workflow.set_entry_point("agent")
 
+    # Agent Routing (Agent -> Tools OR Validate)
     workflow.add_conditional_edges(
         source="agent",
         path=route_agent_action,
-        path_map={"tools": "tools", "validate": "validate"},
+        path_map={"tools": "tools", "validate": "validate", "end": END},
+    )
+
+    # Tool Loop (Tools -> Agent)
+    # After a tool runs (including Diagnosis), go back to Agent to think.
+    workflow.add_edge("tools", "agent")
+
+    # Validation Routing (Validate -> Approve OR Agent)
+    workflow.add_conditional_edges(
+        source="validate",
+        path=check_validation,
+        path_map={
+            "approve": "remediate",  # Passed? Execute (Main loop intercepts)
+            "agent": "agent",  # Failed? Fix it
+        },
     )
 
     workflow.add_edge(start_key="remediate", end_key=END)
 
-    return workflow.compile()
+    memory = MemorySaver()
+
+    return workflow.compile(checkpointer=memory)

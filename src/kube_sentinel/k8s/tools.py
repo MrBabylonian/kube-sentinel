@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 import structlog
 from kubernetes_asyncio import client  # type: ignore
+from kubernetes_asyncio.client.api_client import ApiClient
 from kubernetes_asyncio.client.rest import ApiException  # type: ignore
 
 from kube_sentinel.k8s.client import K8sClient
@@ -19,8 +20,8 @@ async def list_pods(namespace: str = "default") -> list[dict[str, Any]]:
     List all pods in a namespace with their high-level status
     """
     k8s = K8sClient()
-    api_client = await k8s.get_api_client()
-    v1 = client.CoreV1Api(api_client)
+    api_client: ApiClient = await k8s.get_api_client()
+    v1 = client.CoreV1Api(api_client=api_client)
 
     logger.debug("listing_pods", namespace=namespace)
     try:

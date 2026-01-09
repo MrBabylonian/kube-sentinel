@@ -4,7 +4,9 @@ from typing import Any
 
 import structlog
 from dotenv import load_dotenv
+from langchain_core.language_models.base import LanguageModelInput
 from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.runnables.base import Runnable
 from langchain_core.tools import tool
 from langchain_core.tools.base import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -24,8 +26,8 @@ from kube_sentinel.k8s.tools import (
 
 load_dotenv()
 
-GOOGLE_VERTEX_API_KEY = os.getenv("GOOGLE_VERTEX_API_KEY")
-GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
+GOOGLE_VERTEX_API_KEY: str | None = os.getenv("GOOGLE_VERTEX_API_KEY")
+GOOGLE_CLOUD_PROJECT: str | None = os.getenv("GOOGLE_CLOUD_PROJECT")
 
 if not GOOGLE_VERTEX_API_KEY or not GOOGLE_CLOUD_PROJECT:
     raise ValueError(
@@ -111,7 +113,9 @@ async def agent_node(state: SreAgentState) -> dict[str, list[Any]]:
     # We bind the Read Tools AND the RemediationPlan structure.
     # We treat RemediationPlan as a tool call so the LLM can "call" it to signal completion.
 
-    llm_with_tools = llm.bind_tools(READ_TOOLS + [Diagnosis, RemediationPlan])
+    llm_with_tools: Runnable[LanguageModelInput, AIMessage] = llm.bind_tools(
+        READ_TOOLS + [Diagnosis, RemediationPlan]
+    )
 
     system_prompt = f"""
     You are KubeSentinel, an expert autonomous SRE (Site Reliabiliy Engineer)
@@ -129,8 +133,8 @@ async def agent_node(state: SreAgentState) -> dict[str, list[Any]]:
     If a patch failed validation, the error is in the history. Fix your JSON.
 """
 
-    response = await llm_with_tools.ainvoke(
-        [SystemMessage(content=system_prompt)] + state["messages"]
+    response: AIMessage = await llm_with_tools.ainvoke(
+        input=[SystemMessage(content=system_prompt)] + state["messages"]
     )
 
     return {"messages": [response]}
@@ -215,14 +219,18 @@ async def validate_node(state: SreAgentState) -> dict[str, Any]:
         return {
             "remediation_plan": plan,  # To save the plan in state
             "dry_run_passed": True,
-            "messages": [AIMessage(f"SYSTEM: Dry run passed. {result}")],
+            "messages": [
+                AIMessage(content=f"SYSTEM: Dry run passed. {result}")
+            ],
         }
     else:
         logger.warning("dry_run_failed", result=result)
         return {
             "remediation_plan": plan,
             "dry_run_passed": False,
-            "messages": [AIMessage(f"SYSTEM: Dry run failed. {result}")],
+            "messages": [
+                AIMessage(content=f"SYSTEM: Dry run failed. {result}")
+            ],
         }
 
 
@@ -239,7 +247,7 @@ async def remediate_node(state: SreAgentState) -> dict[str, list[AIMessage]]:
     if not state.get("dry_run_passed"):
         logger.error(
             "remediate_node_dry_run_not_passed",
-            error="dry-run did not pass",
+            error="dry_run_did_not_pass",
         )
         raise ValueError(
             "Cannot execute remediation: dry-run validation failed"
@@ -249,7 +257,7 @@ async def remediate_node(state: SreAgentState) -> dict[str, list[AIMessage]]:
     if not state.get("user_approval"):
         logger.error(
             "remediate_node_user_approval_missing",
-            error="user approval not granted",
+            error="user_approval_not_granted",
         )
         raise ValueError("Cannot execute remediation: user approval required")
 
