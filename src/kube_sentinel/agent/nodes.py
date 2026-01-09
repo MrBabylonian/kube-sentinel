@@ -180,7 +180,7 @@ async def validate_node(state: SreAgentState) -> dict[str, Any]:
 
     # Get first tool call and check if it has args
     tool_call = tool_calls[0]
-    if not hasattr(tool_call, "args") and not isinstance(tool_call, dict):
+    if not hasattr(tool_call, "args") and (not isinstance(tool_call, dict) or "args" not in tool_call):
         logger.error("validate_node_no_args", error="tool_call has no args")
         raise ValueError("Invalid tool_call: no args attribute found")
 
