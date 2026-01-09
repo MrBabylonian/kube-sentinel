@@ -66,6 +66,8 @@ class SreAgentState(TypedDict):
     # Context
     namespace: str
 
+    diagnosis: Diagnosis | None
+
     # The Plan (Populated when the Agent decides to solve)
     remediation_plan: RemediationPlan | None
 

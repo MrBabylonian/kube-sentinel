@@ -32,6 +32,9 @@ def route_agent_action(
     Decide next step based on the Agent's output.
     """
     messages = state.get("messages", [])
+    # FIX: Allow empty list for messages here too, though "end" is a safe fallback
+    if messages is None:
+        return "end"
     if not messages:
         return "end"
 
@@ -105,7 +108,7 @@ def build_graph() -> CompiledStateGraph[Any]:
         source="validate",
         path=check_validation,
         path_map={
-            "approve": "remediate",  # Passed? Execute (Main loop intercepts)
+            "approve": "remediate",  # Passed? Execute (Main loop intercepts this)
             "agent": "agent",  # Failed? Fix it
         },
     )
@@ -114,4 +117,6 @@ def build_graph() -> CompiledStateGraph[Any]:
 
     memory = MemorySaver()
 
-    return workflow.compile(checkpointer=memory)
+    return workflow.compile(
+        checkpointer=memory, interrupt_before=["remediate"]
+    )
