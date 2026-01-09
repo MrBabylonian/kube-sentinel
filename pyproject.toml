@@ -31,10 +31,6 @@ packages = ["src/kube_sentinel"]
 target-version = "py312"
 line-length = 79
 
-[tool.pyright]
-pythonVersion = "3.12"
-reportUnknownMemberType = false
-
 [tool.ruff.lint]
 select = [
   "E",   # pycodestyle errors
@@ -51,6 +47,15 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 
+[tool.pyrefly]
+
+
+
 
 [dependency-groups]
-dev = ["kubernetes-typed>=18.20.2", "mypy>=1.19.1", "ruff>=0.14.10"]
+dev = [
+    "kubernetes-typed>=18.20.2",
+    "mypy>=1.19.1",
+    "pyrefly>=0.47.0",
+    "ruff>=0.14.10",
+]

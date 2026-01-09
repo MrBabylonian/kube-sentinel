@@ -146,13 +146,13 @@ async def validate_node(state: SreAgentState) -> dict[str, Any]:
     if not messages or not isinstance(messages, list):
         logger.error(
             "validate_node_invalid_state",
-            error="messages not found or not a list",
+            error="messages_not_found_or_not_a_list",
         )
         raise ValueError("Invalid state: messages field missing or not a list")
 
     if len(messages) == 0:
         logger.error(
-            "validate_node_empty_messages", error="no messages in state"
+            "validate_node_empty_messages", error="no_messages_in_state"
         )
         raise ValueError("Invalid state: messages list is empty")
 
@@ -176,7 +176,7 @@ async def validate_node(state: SreAgentState) -> dict[str, Any]:
 
     # Get first tool call and check if it has args
     tool_call = tool_calls[0]
-    if not hasattr(tool_call, "args") and "args" not in tool_call:
+    if not hasattr(tool_call, "args") and not isinstance(tool_call, dict):
         logger.error("validate_node_no_args", error="tool_call has no args")
         raise ValueError("Invalid tool_call: no args attribute found")
 
@@ -234,6 +234,24 @@ async def remediate_node(state: SreAgentState) -> dict[str, list[AIMessage]]:
             "remediate_node_no_plan", error="no remediation_plan in state"
         )
         raise ValueError("No remediation_plan found in state")
+
+    # Validate dry-run passed before executing remediation
+    if not state.get("dry_run_passed"):
+        logger.error(
+            "remediate_node_dry_run_not_passed",
+            error="dry-run did not pass",
+        )
+        raise ValueError(
+            "Cannot execute remediation: dry-run validation failed"
+        )
+
+    # Validate user approval before executing remediation
+    if not state.get("user_approval"):
+        logger.error(
+            "remediate_node_user_approval_missing",
+            error="user approval not granted",
+        )
+        raise ValueError("Cannot execute remediation: user approval required")
 
     plan: RemediationPlan = state["remediation_plan"]  # type: ignore
 
