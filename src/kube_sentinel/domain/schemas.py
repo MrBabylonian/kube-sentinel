@@ -50,7 +50,9 @@ class RemediationPlan(BaseModel):
         description="The exact JSON Merge Patch to apply (e.g. {'spec': ...}).",
     )
 
-    risk_level: PathRiskLevel = Field(..., description="low, medium, or high")
+    risk_level: PathRiskLevel = Field(
+        ..., description="low, medium, high or critical"
+    )
 
 
 class SreAgentState(TypedDict):
