@@ -17,6 +17,7 @@ dependencies = [
   "rich>=14.2.0",
   "structlog>=25.5.0",
   "typed>=0.6",
+  "typer>=0.21.1",
   "uvloop>=0.22.1",
 ]
 
