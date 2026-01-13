@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from typing import Any
@@ -126,6 +127,11 @@ async def agent_node(state: SreAgentState) -> dict[str, list[Any]]:
 
     FEEDBACK:
     If a patch failed validation, the error is in the history. Fix your JSON.
+
+
+    POST-REMEDIATION:
+    If you receive VERIFICATION FAILED message, analyze the new state carefully.
+    Do NOT retry the exact same fix. Adjust your strategy based on the feedback.
     """
 
     # We prepend the System Prompt to the conversation history
@@ -169,8 +175,8 @@ async def validate_node(state: SreAgentState) -> dict[str, Any]:
 
     try:
         plan = RemediationPlan(**args)
-    except Exception as e:
-        raise ValueError(f"Failed to create RemediationPlan: {e}")
+    except Exception as error:
+        raise ValueError(f"Failed to create RemediationPlan: {error}")
 
     logger.info(
         "validating_plan",
@@ -232,3 +238,183 @@ async def remediate_node(state: SreAgentState) -> dict[str, list[AIMessage]]:
             AIMessage(content=f"SYSTEM: Remediation executed. {result}")
         ]
     }
+
+
+async def verify_fix_node(state: SreAgentState) -> dict[str, Any]:
+    """
+    Verifies that the remediation actually resolved the issue.
+
+    Theoretical Concepts:
+    - Feedback Control System: Measures output (pod health) and to setpoint
+    - Eventual Consistency: Kubernetes changes propagate over time, so we poll with backoff
+    - Circuit Breaker: Prevents infinite retry loops with attempt counter
+
+    Implementation Strategy:
+    1. Wait for kubernetes to propagate changes (exponential backoff)
+    2. Re-query the resource that was problematic
+    3. Check if the issue is resolved
+    4.Return success OR detailed feedback to the agent
+    """
+    namespace = state.get("namespace", "default")
+    diagnosis = state.get("diagnosis")
+    remediation_plan = state.get("remediation_plan")
+    current_attempts = state.get("verification_attempts", 0)
+
+    # Esnure we have the context we need
+    if not diagnosis or not remediation_plan:
+        logger.error("missing_context_during_verification")
+        return {
+            "messages": [
+                SystemMessage(
+                    content="VERIFICATION ERROR: Missing diagnosis or remediation plan in state."
+                )
+            ]
+        }
+
+    target_resource = diagnosis.affected_resource
+
+    logger.info(
+        "verification_starting",
+        resource=target_resource,
+        attempt=current_attempts + 1,
+    )
+
+    # ============================================================
+    # Step 1: Wait for Kubernetes Propagation
+    # ============================================================
+    # Kubernetes is eventually consistent. After a patch:
+    # - ReplicaSet needs to be created
+    # - Scheduler needs to place pods
+    # - Kubelet needs to pull images and start containers
+    # - This can take 5-30 seconds depending on cluster load
+
+    wait_time = min(
+        5 * (2**current_attempts), 30
+    )  # Exponential backoff: 5s, 10s, 20s, max 30s
+
+    logger.info("waiting_for_propagation", seconds=wait_time)
+
+    await asyncio.sleep(wait_time)
+
+    # ============================================================
+    # Step 2: Re-Query Resource Status
+    # ============================================================
+    # We'll list all pods controlled by the deployment and check their states
+
+    try:
+        pods = await list_pods(namespace)
+
+        # Filter for pods belonging to our deployment
+        # Pod names typically follow pattern: <deployment-name>-<replicaset-hash>-<pod-hash>
+        relevant_pods = [
+            pod
+            for pod in pods
+            if pod.get("name", "").startswith(
+                target_resource.replace("-deployment", "")
+            )
+        ]
+
+        if not relevant_pods:
+            failure_msg = (
+                f"VERIFICATION_FAILED: No pods found for {target_resource}"
+            )
+            logger.warning(
+                "no_pods_found_during_verification", resource=target_resource
+            )
+
+        # ============================================================
+        # Step 3: Health Check Logic
+        # ============================================================
+        # Define what "healthy" means:
+        # - Phase should be "Running"
+        # - Ready status should be True
+        # - No CrashLoopBackOff, ImagePullBackOff, OOMKilled, etc.
+        unhealthy_pods = []
+        for pod in relevant_pods:
+            phase = pod.get("phase", "Unknown")
+            status = pod.get("status", "Unknown")
+            ready = pod.get("ready", False)
+
+            if (
+                phase != "Running"
+                or not ready
+                or "BackOff" in status
+                or "Error" in status
+            ):
+                unhealthy_pods.append(
+                    {
+                        "name": pod.get("name"),
+                        "phase": phase,
+                        "status": status,
+                        "ready": ready,
+                    }
+                )
+        # ============================================================
+        # Step 4: Decision Logic
+        # ============================================================
+        if not unhealthy_pods:
+            success_msg = (
+                f"✅ VERIFICATION SUCCESS: All pods for {target_resource} "
+                f"are now healthy (Running & Ready). Issue resolved."
+            )
+            logger.info(
+                "verification_success",
+                resource=target_resource,
+                pod_count=len(relevant_pods),
+            )
+            return {
+                "verification_attempts": 0,  # Reset counter for future issues
+                "last_verification_result": success_msg,
+                "messages": [SystemMessage(content=success_msg)],
+            }
+        else:
+            # FAILURE: Some pods are still unhealthy
+
+            MAX_VERIFICATION_ATTEMPTS = 3
+
+            if current_attempts >= MAX_VERIFICATION_ATTEMPTS:
+                failure_msg = (
+                    f"❌ VERIFICATION FAILED: Max attempts ({MAX_VERIFICATION_ATTEMPTS}) reached. "
+                    f"Pods still unhealthy: {json.dumps(unhealthy_pods, indent=2)}. "
+                    f"Manual intervention required. The automated remediation did not resolve the issue."
+                )
+                logger.error(
+                    "verification_max_attempts",
+                    resource=target_resource,
+                    unhealthy_pods=unhealthy_pods,
+                )
+                return {
+                    "verification_attempts": current_attempts * 1,
+                    "last_verification_result": failure_msg,
+                }
+            else:
+                # Retry: Give agent detailed feedback to adjust strategy
+                failure_msg = (
+                    f"⚠️ VERIFICATION FAILED (Attempt {current_attempts + 1}/{MAX_VERIFICATION_ATTEMPTS}): "
+                    f"Some pods for {target_resource} are still unhealthy: "
+                    f"{json.dumps(unhealthy_pods, indent=2)}. "
+                    f"IMPORTANT: Do NOT retry the same fix. Analyze the new state and try a DIFFERENT approach. "
+                    f"Consider: 1) Increasing resource limits further, 2) Changing environment variables, "
+                    f"3) Checking for application-level bugs."
+                )
+                logger.warning(
+                    "verification_retry",
+                    resource=target_resource,
+                    attempt=current_attempts + 1,
+                    unhealthy_pods=unhealthy_pods,
+                )
+                return {
+                    "verification_attempts": current_attempts + 1,
+                    "last_verification_result": failure_msg,
+                    "messages": [SystemMessage(content=failure_msg)],
+                }
+    except Exception as error:
+        error_msg = (
+            f"VERIFICATION ERROR: Exception during health check: {str(error)}"
+        )
+        logger.exception("verification_exception", resource=target_resource)
+        return {
+            "verification_attempts": current_attempts + 1,
+            "last_verification_result": error_msg,
+            "messages": [SystemMessage(content=error_msg)],
+        }

@@ -22,7 +22,7 @@ class Diagnosis(BaseModel):
     )
 
 
-class PathRiskLevel(str, Enum):
+class PatchRiskLevel(str, Enum):
     """Risk level of applying a remediation."""
 
     LOW = "low"
@@ -50,7 +50,7 @@ class RemediationPlan(BaseModel):
         description="The exact JSON Merge Patch to apply (e.g. {'spec': ...}).",
     )
 
-    risk_level: PathRiskLevel = Field(
+    risk_level: PatchRiskLevel = Field(
         ..., description="low, medium, high or critical"
     )
 
@@ -74,3 +74,7 @@ class SreAgentState(TypedDict):
     # Validation Flags
     dry_run_passed: bool
     user_approval: bool
+
+    verification_attempts: int
+
+    last_verification_result: str | None
