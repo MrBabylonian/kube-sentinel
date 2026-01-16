@@ -34,7 +34,8 @@ async def list_pods(namespace: str = "default") -> list[dict[str, Any]]:
                 restarts = 0
                 if pod.status.container_statuses:
                     restarts = sum(
-                        c.restart_count for c in pod.status.container_statuses
+                        container.restart_count
+                        for container in pod.status.container_statuses
                     )
                 else:
                     logger.debug(
