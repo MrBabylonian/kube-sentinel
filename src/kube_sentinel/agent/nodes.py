@@ -260,7 +260,7 @@ async def verify_fix_node(state: SreAgentState) -> dict[str, Any]:
     remediation_plan = state.get("remediation_plan")
     current_attempts = state.get("verification_attempts", 0)
 
-    # Esnure we have the context we need
+    # Ensure we have the context we need
     if not diagnosis or not remediation_plan:
         logger.error("missing_context_during_verification")
         return {
@@ -331,21 +331,24 @@ async def verify_fix_node(state: SreAgentState) -> dict[str, Any]:
         # - No CrashLoopBackOff, ImagePullBackOff, OOMKilled, etc.
         unhealthy_pods = []
         for pod in relevant_pods:
-            phase = pod.get("phase", "Unknown")
-            status = pod.get("status", "Unknown")
-            ready = pod.get("ready", False)
+            # "status" field from list_pods contains the pod phase
+            phase = pod.get("status", "Unknown")
+            # "conditions" contains reasons for conditions with status == "False"
+            # If empty, the pod is considered ready (no failing conditions)
+            conditions = pod.get("conditions", [])
+            ready = len(conditions) == 0
 
-            if (
-                phase != "Running"
-                or not ready
-                or "BackOff" in status
-                or "Error" in status
-            ):
+            # Check for BackOff/Error in conditions list
+            has_backoff_or_error = any(
+                "BackOff" in cond or "Error" in cond for cond in conditions
+            )
+
+            if phase != "Running" or not ready or has_backoff_or_error:
                 unhealthy_pods.append(
                     {
                         "name": pod.get("name"),
                         "phase": phase,
-                        "status": status,
+                        "conditions": conditions,
                         "ready": ready,
                     }
                 )
@@ -386,6 +389,7 @@ async def verify_fix_node(state: SreAgentState) -> dict[str, Any]:
                 return {
                     "verification_attempts": current_attempts * 1,
                     "last_verification_result": failure_msg,
+                    "messages": [SystemMessage(content=failure_msg)],
                 }
             else:
                 # Retry: Give agent detailed feedback to adjust strategy
