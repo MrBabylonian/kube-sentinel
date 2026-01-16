@@ -387,7 +387,7 @@ async def verify_fix_node(state: SreAgentState) -> dict[str, Any]:
                     unhealthy_pods=unhealthy_pods,
                 )
                 return {
-                    "verification_attempts": current_attempts * 1,
+                    "verification_attempts": current_attempts + 1,
                     "last_verification_result": failure_msg,
                     "messages": [SystemMessage(content=failure_msg)],
                 }
