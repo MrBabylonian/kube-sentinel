@@ -67,6 +67,19 @@ def route_agent_action(
     return "tools"
 
 
+def check_validation(
+    state: SreAgentState,
+) -> Literal["request_human_approval", "agent"]:
+    """
+    - Passed? -> Go to Human Approval (Main loop intercepts this)
+    - Failed? -> Go back to Agent to fix
+    """
+    if state.get("dry_run_passed"):
+        return "request_human_approval"
+
+    return "agent"
+
+
 def route_verification(state: SreAgentState) -> Literal["agent", "end"]:
     """
     Decides what to do after verification.
@@ -86,7 +99,10 @@ def route_verification(state: SreAgentState) -> Literal["agent", "end"]:
     content = getattr(last_message, "content", "")
 
     # Success case: Verification passed
-    if "VERIFICATION_SUCCESS" or "VERIFICATION_SUCCESS".lower() in content:
+    if (
+        "VERIFICATION_SUCCESS" in content
+        or "verification_success" in content
+    ):
         logger.info("route_verification_success")
         return "end"
 
@@ -100,28 +116,23 @@ def route_verification(state: SreAgentState) -> Literal["agent", "end"]:
     return "agent"
 
 
-def check_validation(
-    state: SreAgentState,
-) -> Literal["request_human_approval", "agent"]:
-    """
-    - Passed? -> Go to Human Approval (Main loop intercepts this)
-    - Failed? -> Go back to Agent to fix
-    """
-    if state.get("dry_run_passed"):
-        return "request_human_approval"
-
-    return "agent"
-
-
 def build_graph() -> CompiledStateGraph[Any]:
     """
     Constructs the Async State Graph.
+
+    TOPOLOGY:
+    1. agent -> tools (read data)
+    2. agent -> validate (check patch syntax)
+    3. validate -> remediate (human approval gate)
+    4. remediate -> verify (check if the fix has worked)
+    5. verify -> agent (retry) OR verify -> END (success/max attempts)
     """
     workflow = StateGraph(SreAgentState)
 
     workflow.add_node("agent", agent_node)
     workflow.add_node("validate", validate_node)
     workflow.add_node("remediate", remediate_node)
+    workflow.add_node("verify", verify_fix_node)
 
     all_tools = READ_TOOLS + [Diagnosis]
     workflow.add_node("tools", ToolNode(tools=all_tools))
@@ -149,7 +160,16 @@ def build_graph() -> CompiledStateGraph[Any]:
         },
     )
 
-    workflow.add_edge(start_key="remediate", end_key=END)
+    workflow.add_edge(start_key="remediate", end_key="verify")
+
+    workflow.add_conditional_edges(
+        source="verify",
+        path=route_verification,
+        path_map={
+            "agent": "agent",  # Retry with different approach
+            "end": END,  # Success or Max Attempts reached
+        },
+    )
 
     memory = MemorySaver()
 
