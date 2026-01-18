@@ -11,6 +11,7 @@ from kube_sentinel.agent.nodes import (
     agent_node,
     remediate_node,
     validate_node,
+    verify_fix_node,
 )
 from kube_sentinel.domain.schemas import Diagnosis, SreAgentState
 
@@ -48,7 +49,7 @@ def route_agent_action(
 
     # 2. Inspect the tool name
     # Note: Depending on the LLM, it might queue multiple calls.
-    # I look at the first one to decide the "Phase".
+    # look at the first one to decide the "Phase".
     tool_call = last_message.tool_calls[0]
     try:
         tool_name = tool_call.get("name")
@@ -58,21 +59,56 @@ def route_agent_action(
     if tool_name == "RemediationPlan":
         return "validate"
 
-    # If it's Diagnosis, I treat it as a tool call that returns data,
-    # so I route to "tools"
+    # If it's Diagnosis, treat it as a tool call that returns data,
+    # so route to "tools"
     # Since I am bounding Diagnosis as a tool, ToolNode will handle it
     # (returning the validation result of the Pydantic model).
 
     return "tools"
 
 
-def check_validation(state: SreAgentState) -> Literal["approve", "agent"]:
+def route_verification(state: SreAgentState) -> Literal["agent", "end"]:
+    """
+    Decides what to do after verification.
+
+    Decision Logic:
+    - If verification succeeded (verification_attemtps reset to 0): END
+    - If verification failed but attempts < 3: Go back to AGENT retry with different approach
+    - If verification failed and attemps >= 3 END (circuit breaker)
+    """
+    messages = state.get("messages", [])
+    current_attempts = state.get("verification_attempts", 0)
+    if not messages:
+        logger.warning("route_verification_no_messages")
+        return "end"
+
+    last_message = messages[-1]
+    content = getattr(last_message, "content", "")
+
+    # Success case: Verification passed
+    if "VERIFICATION_SUCCESS" or "VERIFICATION_SUCCESS".lower() in content:
+        logger.info("route_verification_success")
+        return "end"
+
+    # Failure case: Max attempts reached
+    if current_attempts >= 3:
+        logger.info("route_verification_max_attempts_reached")
+        return "end"
+
+    # Retry case
+    logger.info("route_verification_retrying", attempt=current_attempts)
+    return "agent"
+
+
+def check_validation(
+    state: SreAgentState,
+) -> Literal["request_human_approval", "agent"]:
     """
     - Passed? -> Go to Human Approval (Main loop intercepts this)
     - Failed? -> Go back to Agent to fix
     """
     if state.get("dry_run_passed"):
-        return "approve"
+        return "request_human_approval"
 
     return "agent"
 
@@ -103,12 +139,12 @@ def build_graph() -> CompiledStateGraph[Any]:
     # After a tool runs (including Diagnosis), go back to Agent to think.
     workflow.add_edge("tools", "agent")
 
-    # Validation Routing (Validate -> Approve OR Agent)
+    # Validation Routing (Validate -> request_human_approval OR Agent)
     workflow.add_conditional_edges(
         source="validate",
         path=check_validation,
         path_map={
-            "approve": "remediate",  # Passed? Execute (Main loop intercepts this)
+            "request_human_approval": "remediate",  # Passed? Execute (Main loop intercepts this)
             "agent": "agent",  # Failed? Fix it
         },
     )
