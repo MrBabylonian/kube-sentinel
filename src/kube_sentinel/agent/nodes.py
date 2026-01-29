@@ -12,12 +12,12 @@ from langchain_core.tools import tool
 from langchain_core.tools.base import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from kube_sentinel.domain.schemas import (
+from src.kube_sentinel.domain.schemas import (
     Diagnosis,
     RemediationPlan,
     SreAgentState,
 )
-from kube_sentinel.k8s.tools import (
+from src.kube_sentinel.k8s.tools import (
     describe_pod,
     get_deployment_details,
     get_pod_logs,
