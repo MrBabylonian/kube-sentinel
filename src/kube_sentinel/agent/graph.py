@@ -6,14 +6,14 @@ from langgraph.constants import END
 from langgraph.graph.state import CompiledStateGraph, StateGraph
 from langgraph.prebuilt.tool_node import ToolNode
 
-from kube_sentinel.agent.nodes import (
+from src.kube_sentinel.agent.nodes import (
     READ_TOOLS,
     agent_node,
     remediate_node,
     validate_node,
     verify_fix_node,
 )
-from kube_sentinel.domain.schemas import Diagnosis, SreAgentState
+from src.kube_sentinel.domain.schemas import Diagnosis, SreAgentState
 
 logger = structlog.getLogger()
 

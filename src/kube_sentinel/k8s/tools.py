@@ -10,7 +10,7 @@ from kubernetes_asyncio import client  # type: ignore
 from kubernetes_asyncio.client.api_client import ApiClient
 from kubernetes_asyncio.client.rest import ApiException  # type: ignore
 
-from kube_sentinel.k8s.client import K8sClient
+from src.kube_sentinel.k8s.client import K8sClient
 
 logger = structlog.getLogger()
 
@@ -80,7 +80,7 @@ async def describe_pod(pod_name: str, namespace: str = "default") -> str:
     logger.info("describing_pod", pod_name=pod_name, namespace=namespace)
 
     try:
-        pod = await v1.read_namespaced_pod(name=pod_name, namespace=namespace)  # pyright: ignore
+        pod = await v1.read_namespaced_pod(name=pod_name, namespace=namespace)
 
         statuses = (
             pod.status.container_statuses
@@ -90,9 +90,9 @@ async def describe_pod(pod_name: str, namespace: str = "default") -> str:
         report = []
 
         for container_info in statuses:
-            state_msg = "Unknown"
+            state_msg = ""
             if container_info.state.terminated:
-                state_msg = f"Terminated (Reason: {container_info.state.terminated.reason}, Exit Code: {container_info.state.terminated.exit_code})"  # noqa: E501
+                state_msg = f"Terminated (Reason: {container_info.state.terminated.reason}, Exit Code: {container_info.state.terminated.exit_code})"
             elif container_info.state.waiting:
                 state_msg = (
                     f"Waiting (Reason: {container_info.state.waiting.reason})"
