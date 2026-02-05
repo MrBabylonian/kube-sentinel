@@ -29,7 +29,7 @@ build-backend = "hatchling.build"
 packages = ["src/kube_sentinel"]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py314"
 line-length = 79
 
 [tool.ruff.lint]
@@ -38,12 +38,12 @@ select = [
   "F",   # Pyflakes
   "I",   # isort (imports)
   "B",   # flake8-bugbear (finds likely bugs)
-  "UP",  # pyupgrade (enforces modern Python 3.12 syntax)
+  "UP",  # pyupgrade (enforces modern Python 3.14 syntax)
   "SIM", # flake8-simplify (code quality)
 ]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
