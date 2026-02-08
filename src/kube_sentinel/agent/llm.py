@@ -13,8 +13,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-    GOOGLE_VERTEX_API_KEY: SecretStr = SecretStr("")
-    GOOGLE_CLOUD_PROJECT: SecretStr = SecretStr("")
+    GOOGLE_VERTEX_API_KEY: SecretStr
+    GOOGLE_CLOUD_PROJECT: SecretStr
 
 
 SYSTEM_PROMPT = (
@@ -30,11 +30,13 @@ class ChatService:
     """Manages LLM interactions with conversation memory."""
 
     def __init__(self) -> None:
-        self._settings = Settings()
+        self._settings = Settings()  # type: ignore[call-arg]
         self._llm = ChatGoogleGenerativeAI(
             model="gemini-3-flash-preview",
-            api_key=self._settings.GOOGLE_VERTEX_API_KEY.get_secret_value(),
-            google_cloud_project=self._settings.GOOGLE_CLOUD_PROJECT.get_secret_value(),
+            # ChatGoogleGenerativeAI accepts SecretStr,
+            # no need to get_secret_value()
+            api_key=self._settings.GOOGLE_VERTEX_API_KEY,
+            google_cloud_project=self._settings.GOOGLE_CLOUD_PROJECT,
             temperature=0.3,
             vertexai=True,
         )
@@ -59,9 +61,15 @@ class ChatService:
                     full_response += token
                     yield token
             self._history.append(AIMessage(content=full_response))
-        except Exception as error:
-            self._history.remove(message)
-            raise error
+        except Exception:
+            # list.remove() deletes the first element equal to message.
+            # If the user sends the same text twice,
+            # it will remove the earlier message
+            # instead of the one just appended.
+            # Since the message was appended at the end,
+            # self._history.pop() is both correct and O(1).
+            self._history.pop(self._history.index(message))
+            raise
 
     async def clear_chat_history(self) -> None:
         """Clear the chat history."""
