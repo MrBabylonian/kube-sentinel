@@ -1,10 +1,14 @@
 import os
+from collections.abc import AsyncIterator
 
 from dotenv import load_dotenv
-from langchain_core.output_parsers import JsonOutputParser
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+)
 from langchain_google_genai import ChatGoogleGenerativeAI
-from pydantic import BaseModel, Field
 
 load_dotenv(verbose=True)
 
@@ -13,45 +17,46 @@ GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
 
 if not GOOGLE_VERTEX_API_KEY or not GOOGLE_CLOUD_PROJECT:
     raise ValueError(
-        "GOOGLE VERTEX API KEY and GOOGLE CLOUD PROJECT must be set in environment variables."
+        "GOOGLE_VERTEX_API_KEY and GOOGLE_CLOUD_PROJECT must be set"
     )
 
-
-# 1. Define the desired JSON structure using Pydantic
-class AgentResponse(BaseModel):
-    status: str = Field(
-        description="The status of the request, e.g., 'success' or 'error'"
-    )
-    answer: str = Field(description="The actual response to the user query")
-    confidence_score: float = Field(
-        description="A value between 0 and 1 representing the confidence"
-    )
-
-
-# 2. Initialize the parser with the Pydantic model
-parser = JsonOutputParser(pydantic_object=AgentResponse)
-
-llm = ChatGoogleGenerativeAI(
-    model="gemini-3-flash-preview",
-    api_key=GOOGLE_VERTEX_API_KEY,
-    project=GOOGLE_CLOUD_PROJECT,
-    vertexai=True,
-    temperature=0,
+SYSTEM_PROMPT = (
+    "You are Kube-Sentinel, an expert AI SRE assistant specialized in "
+    "Kubernetes cluster management, incident response, and remediation. "
+    "You provide clear, actionable advice. When discussing commands or "
+    "configurations, use proper formatting with code blocks. "
+    "Be concise with a natural modern English tone throughout. "
 )
 
-# 3. Create a prompt that includes format_instructions
-prompt = ChatPromptTemplate.from_template(
-    "You are a helpful assistant. Please answer the user query.\n{format_instructions}\n{query}"
-)
 
-# 4. Use partial to inject the format instructions into the prompt
-prompt = prompt.partial(format_instructions=parser.get_format_instructions())
+class ChatService:
+    """Manages LLM interactions with conversation memory."""
 
-# 5. Create the chain using LCEL
-structured_chain = prompt | llm | parser
+    def __init__(self) -> None:
+        self._llm = ChatGoogleGenerativeAI(
+            model="gemini-3-flash-preview",
+            api_key=GOOGLE_VERTEX_API_KEY,
+            google_cloud_project=GOOGLE_CLOUD_PROJECT,
+            temperature=0.3,
+            vertexai=True,
+        )
+        self._history: list[BaseMessage] = [
+            SystemMessage(content=SYSTEM_PROMPT)
+        ]
+        return None
 
-response = structured_chain.invoke(
-    {"query": "What is the weather like in Rome? "}
-)
+    async def stream(self, user_input: str) -> AsyncIterator[str]:
+        """Stream LLM response tokens for a given user message."""
+        self._history.append(HumanMessage(content=user_input))
+        full_response = ""
+        async for chunk in self._llm.astream(self._history):
+            token = chunk.content
+            if isinstance(token, str):
+                full_response += token
+                yield token
+        self._history.append(AIMessage(content=full_response))
 
-print(response)
+    async def clear_chat_history(self) -> None:
+        """Clear the chat history."""
+        self._history = [SystemMessage(content=SYSTEM_PROMPT)]
+        return None
