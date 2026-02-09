@@ -36,7 +36,7 @@ class ChatService:
             # ChatGoogleGenerativeAI accepts SecretStr,
             # no need to get_secret_value()
             api_key=self._settings.GOOGLE_VERTEX_API_KEY,
-            google_cloud_project=self._settings.GOOGLE_CLOUD_PROJECT,
+            project=self._settings.GOOGLE_CLOUD_PROJECT,
             temperature=0.3,
             vertexai=True,
         )
@@ -68,7 +68,7 @@ class ChatService:
             # instead of the one just appended.
             # Since the message was appended at the end,
             # self._history.pop() is both correct and O(1).
-            self._history.pop(self._history.index(message))
+            self._history.pop()
             raise
 
     async def clear_chat_history(self) -> None:
