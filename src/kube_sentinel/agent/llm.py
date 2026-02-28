@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from copy import deepcopy
 
 from langchain_core.messages import (
     AIMessage,
@@ -43,10 +44,12 @@ class ChatService:
         self._history: list[BaseMessage] = [
             SystemMessage(content=SYSTEM_PROMPT)
         ]
-        return None
 
     """
-    TODO: _history grows without limit. For long-lived sessions, accumulated messages will exceed the token budget, causing API errors or silent truncation. Consider adding a sliding window, token-count cap, or summarization strategy.
+    TODO: _history grows without limit. For long-lived sessions, 
+    accumulated messages will exceed the token budget, causing API errors 
+    or silent truncation. Consider adding a sliding window, token-count cap, 
+    or summarization strategy.
     """
 
     async def stream(self, user_input: str) -> AsyncIterator[str]:
@@ -70,6 +73,10 @@ class ChatService:
             # self._history.pop() is both correct and O(1).
             self._history.pop()
             raise
+
+    async def get_chat_history(self) -> tuple[BaseMessage, ...]:
+        """Get the chat history."""
+        return tuple(deepcopy(self._history))
 
     async def clear_chat_history(self) -> None:
         """Clear the chat history."""
