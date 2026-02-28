@@ -3,23 +3,23 @@ name = "kube-sentinel"
 version = "0.1.0"
 description = "An AI-powered SRE agent for Kubernetes incident remediation."
 authors = [
-  { name = "Bedirhan Gilgiler a.k.a MrBabylonian", email = "bedirhangilgiler@gmail.com" },
+    { name = "Bedirhan Gilgiler a.k.a MrBabylonian", email = "bedirhangilgiler@gmail.com" },
 ]
 readme = "README.md"
-requires-python = "==3.14.2"
+requires-python = ">=3.14"
 dependencies = [
-  "kubernetes-asyncio>=33.3.0",
-  "langchain-google-genai>=4.1.3",
-  "langchain-openai>=1.1.6",
-  "langgraph>=1.0.5",
-  "pydantic>=2.12.5",
-  "pydantic-settings>=2.12.0",
-  "rich>=14.2.0",
-  "structlog>=25.5.0",
-  "textual>=7.5.0",
-  "typed>=0.6",
-  "typer>=0.21.1",
-  "uvloop>=0.22.1",
+    "kubernetes-asyncio>=33.3.0",
+    "langchain-google-genai>=4.1.3",
+    "langchain-openai>=1.1.6",
+    "langgraph>=1.0.5",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+    "rich>=14.2.0",
+    "structlog>=25.5.0",
+    "textual>=7.5.0",
+    "typed>=0.6",
+    "typer>=0.21.1",
+    "uvloop>=0.22.1",
 ]
 
 [build-system]
@@ -35,12 +35,12 @@ line-length = 79
 
 [tool.ruff.lint]
 select = [
-  "E",   # pycodestyle errors
-  "F",   # Pyflakes
-  "I",   # isort (imports)
-  "B",   # flake8-bugbear (finds likely bugs)
-  "UP",  # pyupgrade (enforces modern Python 3.14 syntax)
-  "SIM", # flake8-simplify (code quality)
+    "E", # pycodestyle errors
+    "F", # Pyflakes
+    "I", # isort (imports)
+    "B", # flake8-bugbear (finds likely bugs)
+    "UP", # pyupgrade (enforces modern Python 3.14 syntax)
+    "SIM", # flake8-simplify (code quality)
 ]
 
 [tool.mypy]
@@ -53,8 +53,8 @@ warn_unused_configs = true
 # Intentionally left empty; using pyrefly's default configuration.
 [dependency-groups]
 dev = [
-  "kubernetes-typed>=18.20.2",
-  "mypy>=1.19.1",
-  "pyrefly>=0.47.0",
-  "ruff>=0.14.10",
+    "kubernetes-typed>=18.20.2",
+    "mypy>=1.19.1",
+    "pyrefly>=0.47.0",
+    "ruff>=0.14.10",
 ]

@@ -12,7 +12,9 @@ class ChatMessage(Static):
         self, content: str, *, role: Literal["assistant", "user"]
     ) -> None:
         self.role = role
-        self._message_content: str = content  # We are using '_message_content' instead of 'content' to avoid shadowing the class attribute.
+        # We are using '_message_content' instead of 'content'
+        # to avoid shadowing the class attribute.
+        self._message_content: str = content
         super().__init__()
 
     def render(self) -> Panel:
@@ -38,5 +40,5 @@ class ChatMessage(Static):
 
     def update_content(self, text: str) -> None:
         """Update message content and re-render"""
-        self.content = text
+        self._message_content = text
         self.refresh()
