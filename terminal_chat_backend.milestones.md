@@ -121,13 +121,13 @@
 4. Implement strict input validation (name, image required, namespace defaults, resource shape).
 5. Implement safe file-write and overwrite policy.
 6. Implement execution modes:
-7. Generate-only.
-8. Dry-run apply.
-9. Real apply with explicit confirmation gate.
-10. Add tests for YAML generation snapshots.
-11. Add tests for validation failures and command invocation behavior.
-12. Wire tool usage into raw terminal workflow (non-UI).
-13. Validate with manual kubectl checks in test namespace.
+   1. Generate-only.
+   2. Dry-run apply.
+   3. Real apply with explicit confirmation gate.
+7. Add tests for YAML generation snapshots.
+8. Add tests for validation failures and command invocation behavior.
+9. Wire tool usage into raw terminal workflow (non-UI).
+10. Validate with manual kubectl checks in test namespace.
 
 ### DoD
 1. Tool reliably generates valid Pod YAML from terminal flow.
@@ -186,4 +186,3 @@
 | M2 | M1 | M3, M4 | Persistence stable across restart and reset |
 | M3 | M1, M2 | M4 | Pod tool generate/dry-run/apply validated |
 | M4 | M1, M2, M3 | Frontend phase | Explicit go/no-go decision |
-

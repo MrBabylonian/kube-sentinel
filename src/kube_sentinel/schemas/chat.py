@@ -12,5 +12,5 @@ class AgentToolCall(BaseModel):
 class AgentResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
     role: Literal["assistant"] = "assistant"
-    content: str = Field()
+    content: str = Field(default="")
     tool_calls: list[AgentToolCall] = Field(default_factory=list)
