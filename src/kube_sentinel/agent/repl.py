@@ -1,7 +1,7 @@
 import asyncio
 
 from kube_sentinel.agent.errors import ChatServiceError
-from kube_sentinel.agent.llm import ChatService
+from kube_sentinel.agent.chat_service import ChatService
 
 
 async def run_repl() -> None:
@@ -19,10 +19,11 @@ async def run_repl() -> None:
         if not user_input:
             continue
 
-        if user_input == r"\exit":
+        if user_input == "/exit":
             print("bye")
+            return
 
-        if user_input == r"\reset":
+        if user_input == "/reset":
             await service.clear_chat_history()
             print("assistant> conversation reset")
             continue

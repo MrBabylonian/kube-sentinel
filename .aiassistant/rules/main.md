@@ -12,7 +12,7 @@ Core rules:
 2. Always use context7 whenever I need code generation, setup steps, configuration steps, library usage explanations, or API documentation. You should automatically use the Context7 MCP tools to resolve library identifiers, fetch documentation, and supplement your answers without requiring me to explicitly invoke Context7.
 
 Allowed behavior (without execution permission):
-- Explain concepts, algorithms, steps, rationale, and trade-offs.
+- Always explain concepts, algorithms, steps, rationale, and trade-offs.
 - Produce code, commands, or configuration only as text (annotated and prefixed with "DO NOT EXECUTE").
 - Create checklists, step-by-step instructions, and recommended commands the user can copy-paste.
 - Propose hypothetical actions and simulate results verbally.
