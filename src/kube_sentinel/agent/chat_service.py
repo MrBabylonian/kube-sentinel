@@ -5,6 +5,7 @@ from copy import deepcopy
 from typing import Any, Protocol
 
 from dotenv import load_dotenv
+from frozenlist import FrozenList
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -51,22 +52,24 @@ class ChatService:
         GOOGLE_VERTEX_API_KEY = os.getenv("GOOGLE_VERTEX_API_KEY")
         GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
 
-        if not GOOGLE_VERTEX_API_KEY or not GOOGLE_CLOUD_PROJECT:
-            raise ChatConfigurationError(
-                "Missing required Google Vertex AI credentials. "
-                "Please set GOOGLE_VERTEX_API_KEY and GOOGLE_CLOUD_PROJECT environment variables."
-            )
-
         try:
             if llm_client is not None:
                 self._llm = llm_client
             else:
-                self._llm: LLMClient = ChatGoogleGenerativeAI(
+                self._llm = ChatGoogleGenerativeAI(
                     model="gemini-3-flash-preview",
                     # ChatGoogleGenerativeAI accepts SecretStr,
                     # no need to get_secret_value()
-                    api_key=GOOGLE_VERTEX_API_KEY,
-                    project=GOOGLE_CLOUD_PROJECT,
+                    api_key=GOOGLE_VERTEX_API_KEY
+                    if GOOGLE_VERTEX_API_KEY
+                    else ChatConfigurationError(
+                        "GOOGLE_VERTEX_API_KEY is required for LLM client initialization."
+                    ),
+                    project=GOOGLE_CLOUD_PROJECT
+                    if GOOGLE_CLOUD_PROJECT
+                    else ChatConfigurationError(
+                        "GOOGLE_CLOUD_PROJECT is required for LLM client initialization."
+                    ),
                     temperature=0.3,
                     vertexai=True,
                 )
@@ -147,9 +150,11 @@ class ChatService:
                 f"LLM Streaming failed: {error}"
             ) from error
 
-    async def get_chat_history(self) -> tuple[BaseMessage, ...]:
+    async def get_chat_history(self) -> FrozenList[BaseMessage]:
         """Get the chat history."""
-        return tuple(deepcopy(self._history))
+        frozen_history = FrozenList(deepcopy(self._history))
+        frozen_history.freeze()
+        return frozen_history
 
     async def clear_chat_history(self) -> None:
         """Clear the chat history."""
