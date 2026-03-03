@@ -11,7 +11,7 @@ from kube_sentinel.agent.chat_service import ChatService
 class ScriptedLLM:
     def __init__(
         self,
-        chunks: list[str] | list[list[Any]] | None = None,
+        chunks: list[str] | None = None,
         exc: Exception | None = None,
     ) -> None:
         self.chunks = chunks or []
@@ -107,3 +107,94 @@ async def test_stream_success() -> None:
     )
 
     return None
+
+
+@pytest.mark.asyncio
+async def test_stream_appends_to_history() -> None:
+    """
+    Test that ChatService correctly appends HumanMessage and
+    AIMessage to history.
+
+    This test validates:
+    1. User input is appended as a HumanMessage before streaming
+    2. LLM response is appended as an AIMessage after streaming completes
+    3. Messages are appended in the correct order
+    4. Multiple calls accumulate messages correctly
+    """
+
+    first_ai_response = "Response 1"
+
+    scripted_llm = ScriptedLLM([first_ai_response])
+
+    service = ChatService(llm_client=scripted_llm)
+
+    history_before_first_input = await service.get_chat_history()
+    assert len(history_before_first_input) == 1, (
+        "History should start with only the system message"
+    )
+
+    user_input_1 = "First question?"
+
+    async for _ in service.stream(user_input_1):
+        pass
+
+    # VERIFY: History after first stream
+    # Should have: [SystemMessage, HumanMessage(input), AIMessage(response)]
+    history_after_first_input = await service.get_chat_history()
+
+    assert len(history_after_first_input) == 3, (
+        "After first input, history should have 3 messages"
+        "(system, human, ai response)"
+    )
+
+    assert history_after_first_input[1].content == user_input_1, (
+        f"After first input, second message should be the user's HumanMessage with content '{user_input_1}'"
+    )
+    assert history_after_first_input[2].content == first_ai_response, (
+        f"After first input, third message should be the AI's response with content '{first_ai_response}'"
+    )
+
+    second_ai_response = "Response 2"
+
+    scripted_llm.chunks = [second_ai_response]
+    user_input_2 = "Second question?"
+
+    async for _ in service.stream(user_input_2):
+        pass
+
+    # VERIFY: History after second stream
+    # Should have: [SystemMessage, HumanMessage(1), AIMessage(1), HumanMessage(2), AIMessage(2)]
+
+    history_after_second_input = await service.get_chat_history()
+
+    assert len(history_after_second_input) == 5, (
+        "After second input, history should have 5 messages"
+        "(system, human1, ai response 1, human2, ai response 2)"
+    )
+
+    assert isinstance(history_after_second_input[0], SystemMessage), (
+        "First message should be a SystemMessage"
+    )
+    assert (
+        isinstance(history_after_second_input[1], HumanMessage)
+        and history_after_second_input[1].content == user_input_1
+    ), (
+        "Second message should be the first HumanMessage with content matching user_input_1"
+    )
+    assert (
+        isinstance(history_after_second_input[2], AIMessage)
+        and history_after_second_input[2].content == first_ai_response
+    ), (
+        "Third message should be the first AIMessage with content matching first_ai_response"
+    )
+    assert (
+        isinstance(history_after_second_input[3], HumanMessage)
+        and history_after_second_input[3].content == user_input_2
+    ), (
+        "Fourth message should be the second HumanMessage with content matching user_input_2"
+    )
+    assert (
+        isinstance(history_after_second_input[4], AIMessage)
+    ) and history_after_second_input[4].content == second_ai_response, (
+        "Fifth message should be the second AIMessage with content matching second_ai_response"
+    )
