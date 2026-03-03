@@ -56,23 +56,25 @@ class ChatService:
             if llm_client is not None:
                 self._llm = llm_client
             else:
+                if not GOOGLE_VERTEX_API_KEY:
+                    raise ChatConfigurationError(
+                        "GOOGLE_VERTEX_API_KEY is required for LLM client initialization."
+                    )
+                if not GOOGLE_CLOUD_PROJECT:
+                    raise ChatConfigurationError(
+                        "GOOGLE_CLOUD_PROJECT is required for LLM client initialization."
+                    )
                 self._llm = ChatGoogleGenerativeAI(
                     model="gemini-3-flash-preview",
                     # ChatGoogleGenerativeAI accepts SecretStr,
                     # no need to get_secret_value()
-                    api_key=GOOGLE_VERTEX_API_KEY
-                    if GOOGLE_VERTEX_API_KEY
-                    else ChatConfigurationError(
-                        "GOOGLE_VERTEX_API_KEY is required for LLM client initialization."
-                    ),
-                    project=GOOGLE_CLOUD_PROJECT
-                    if GOOGLE_CLOUD_PROJECT
-                    else ChatConfigurationError(
-                        "GOOGLE_CLOUD_PROJECT is required for LLM client initialization."
-                    ),
+                    api_key=GOOGLE_VERTEX_API_KEY,
+                    project=GOOGLE_CLOUD_PROJECT,
                     temperature=0.3,
                     vertexai=True,
                 )
+        except ChatConfigurationError:
+            raise
         except Exception as error:
             raise ChatProviderError(
                 "Failed to initialize LLM provider."

@@ -15,7 +15,7 @@
 
 ## Milestone ID: M0
 **Title:** Scope Lock and Execution Criteria  
-**Status:** `NOT_STARTED`
+**Status:** `IN_PROGRESS`
 
 ### Tasks
 1. Freeze project scope to backend-only until `M1` to `M3` pass.
@@ -40,18 +40,21 @@
 
 ## Milestone ID: M1
 **Title:** Chat Functionality 100% In-Memory  
-**Status:** `NOT_STARTED`
+**Status:** `IN_PROGRESS`
 
 ### Tasks
-1. Finalize chat service contract (`stream`, `clear_history`, optional `get_history`).
-2. Ensure deterministic system prompt initialization and reset behavior.
-3. Enforce turn lifecycle: append user input, stream response, persist assistant output.
-4. Implement rollback behavior for failed stream attempts.
-5. Fix streaming update path to mutate the same content field used for rendering/output.
-6. Add explicit error handling categories (configuration, provider, stream interruption).
-7. Add terminal REPL harness for raw chat interaction.
-8. Add unit tests for history initialization, ordering, reset, and failure rollback.
-9. Add streaming tests for token aggregation and stream finalization.
+1. ✅ Finalize chat service contract (`stream`, `clear_history`, `get_chat_history` returning FrozenList).
+2. ✅ Ensure deterministic system prompt initialization and reset behavior (SYSTEM_PROMPT constant).
+3. ✅ Enforce turn lifecycle: append user input, stream response, persist assistant output.
+4. ✅ Implement rollback behavior for failed stream attempts (`_rollback_user_turn` method).
+5. ✅ Streaming update path mutates content field via `full_response` accumulation.
+6. ✅ Add explicit error handling categories (ChatConfigurationError, ChatProviderError, ChatStreamError).
+7. ✅ Add terminal REPL harness for raw chat interaction (repl.py exists).
+8. 🔄 Add unit tests for history initialization, ordering, reset, and failure rollback.
+   - ✅ test_history_initialization DONE
+   - ✅ test_stream_success DONE
+   - 🔄 test_stream_appends_to_history IN_PROGRESS
+9. 🔄 Add streaming tests for token aggregation and stream finalization (in test_stream_success).
 
 ### DoD
 1. In-memory multi-turn chat works reliably in terminal.
@@ -68,9 +71,14 @@
 6. Manual terminal: interrupted/failed stream recovers correctly.
 
 ### Evidence
-1. Test run output summary (`passed/failed`) for `M1` test set.
-2. Terminal transcript snippets for manual checks.
-3. Short defect log for any known non-blocking issues.
+1. Test run output summary (`passed/failed`) for `M1` test set:
+   - Current: 2 tests passing (test_history_initialization, test_stream_success)
+   - In progress: test_stream_appends_to_history (chunk accumulation fix)
+   - Remaining: test_stream_empty_input, test_clear_chat_history, test_stream_with_llm_error, test_extract_token_text_* (5 more tests planned)
+2. Terminal transcript snippets for manual checks (pending multi-turn REPL validation).
+3. Known non-blocking issues:
+   - ChatService._llm attribute redeclaration warning (type annotation fix pending)
+   - Pydantic V1 deprecation warning with Python 3.14 (langchain_core issue, not blocking)
 
 ---
 
