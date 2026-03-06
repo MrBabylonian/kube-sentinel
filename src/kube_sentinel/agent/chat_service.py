@@ -162,3 +162,4 @@ class ChatService:
         """Clear the chat history."""
         self._history = [SystemMessage(content=SYSTEM_PROMPT)]
         return None
+

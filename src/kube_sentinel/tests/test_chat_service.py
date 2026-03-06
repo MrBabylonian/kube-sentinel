@@ -6,6 +6,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from kube_sentinel.agent.chat_service import ChatService
+from kube_sentinel.agent.errors import ChatStreamError
 
 
 class ScriptedLLM:
@@ -238,3 +239,38 @@ async def test_clear_chat_history():
     assert len(
             history_after_second_cleanup
     ) == 1, "History should have one system message after second cleanup"
+    assert isinstance(history_after_second_cleanup[0],
+                      SystemMessage), "After second cleanup, first message should be a SystemMessage"
+
+
+@pytest.mark.asyncio
+async def test_stream_empty_input() -> None:
+    """
+    Test that ChatService raises ChatStreamError when given empty or
+    whitespace-only user input.
+
+    This test validates:
+    1. Empty string raises ChatStreamError
+    2. Whitespace-only string raises ChatStreamError
+    3. Error message is descriptive
+    4. No messages are added to history on error
+    """
+    service = ChatService(llm_client=ScriptedLLM())
+    with pytest.raises(ChatStreamError) as exception_info:
+        async for _ in service.stream(""):
+            pass
+    assert str(exception_info.value) == "User input cannot be empty"
+
+    with pytest.raises(ChatStreamError) as exception_info:
+        async for _ in service.stream("   "):
+            pass
+
+    assert str(exception_info.value) == "User input cannot be empty"
+
+    history = await service.get_chat_history()
+    assert len(
+        history) == 1, "History should start with only the system message"
+    assert isinstance(history[0],
+                      SystemMessage), "First message should be a SystemMessage"
+
+    return None

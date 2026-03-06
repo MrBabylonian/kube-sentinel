@@ -12,7 +12,7 @@ async def run_repl() -> None:
     while True:
         try:
             user_input = input("you> ").strip()
-        except EOFError, KeyboardInterrupt:
+        except (EOFError, KeyboardInterrupt):
             print("\nbye")
             return
 
@@ -33,7 +33,7 @@ async def run_repl() -> None:
         try:
             async for token in service.stream(user_input):
                 print(token, end="", flush=True)
-                print()
+            print()  # Add newline after stream completes
         except ChatServiceError as error:
             print(f"\nerror {error}")
         except Exception as error:
