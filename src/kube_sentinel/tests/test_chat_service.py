@@ -10,9 +10,9 @@ from kube_sentinel.agent.chat_service import ChatService
 
 class ScriptedLLM:
     def __init__(
-        self,
-        chunks: list[str] | None = None,
-        exc: Exception | None = None,
+            self,
+            chunks: list[str] | None = None,
+            exc: Exception | None = None,
     ) -> None:
         self.chunks = chunks or []
         self._exc = exc
@@ -176,25 +176,65 @@ async def test_stream_appends_to_history() -> None:
         "First message should be a SystemMessage"
     )
     assert (
-        isinstance(history_after_second_input[1], HumanMessage)
-        and history_after_second_input[1].content == user_input_1
+            isinstance(history_after_second_input[1], HumanMessage)
+            and history_after_second_input[1].content == user_input_1
     ), (
         "Second message should be the first HumanMessage with content matching user_input_1"
     )
     assert (
-        isinstance(history_after_second_input[2], AIMessage)
-        and history_after_second_input[2].content == first_ai_response
+            isinstance(history_after_second_input[2], AIMessage)
+            and history_after_second_input[2].content == first_ai_response
     ), (
         "Third message should be the first AIMessage with content matching first_ai_response"
     )
     assert (
-        isinstance(history_after_second_input[3], HumanMessage)
-        and history_after_second_input[3].content == user_input_2
+            isinstance(history_after_second_input[3], HumanMessage)
+            and history_after_second_input[3].content == user_input_2
     ), (
         "Fourth message should be the second HumanMessage with content matching user_input_2"
     )
     assert (
-        isinstance(history_after_second_input[4], AIMessage)
-    ) and history_after_second_input[4].content == second_ai_response, (
+               isinstance(history_after_second_input[4], AIMessage)
+           ) and history_after_second_input[4].content == second_ai_response, (
         "Fifth message should be the second AIMessage with content matching second_ai_response"
     )
+
+
+@pytest.mark.asyncio
+async def test_clear_chat_history():
+    """
+    Test that ChatService correctly clears chat history and resets
+    to just the system message.
+
+    This test validates:
+    1. History contains messages before clearing
+    2. After clear_chat_history(), history is reset to only system message
+    3. Clearing multiple times maintains the invariant
+    """
+    scripted_llm = ScriptedLLM(chunks=["Response 1"])
+    service = ChatService(llm_client=scripted_llm)
+
+    async for _ in service.stream("First question?"):
+        pass
+    history_before_cleanup = await service.get_chat_history()
+
+    assert isinstance(history_before_cleanup[0],
+                      SystemMessage), "The first message should be a SystemMessage"
+
+    assert len(
+            history_before_cleanup) == 3, "History should have three messages before cleanup"
+
+    await service.clear_chat_history()
+    history_after_first_cleanup = await service.get_chat_history()
+    assert len(
+            history_after_first_cleanup
+    ) == 1, "History should have one system message after cleanup"
+    assert isinstance(history_after_first_cleanup[0], SystemMessage), (
+        "After cleanup, first message should be a SystemMessage"
+    )
+
+    await service.clear_chat_history()
+    history_after_second_cleanup = await service.get_chat_history()
+    assert len(
+            history_after_second_cleanup
+    ) == 1, "History should have one system message after second cleanup"
