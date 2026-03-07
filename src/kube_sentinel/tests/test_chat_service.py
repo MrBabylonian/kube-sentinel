@@ -342,3 +342,35 @@ async def test_stream_with_cancelled_error() -> None:
         "The first message should be a SystemMessage"
     )
     return None
+
+@pytest.mark.asyncio
+async def test_history_independence() -> None:
+    """
+    Test that get_chat_history() returns a deep copy
+    and mutations
+    to the returned history do not affect the internal
+    state.
+
+    This test validates:
+    1. Mutating a message object from the returned
+    history
+    does not affect the internal history
+    2. get_chat_history() always reflects the true
+    internal state
+    """
+    scripted_llm: ScriptedLLM = ScriptedLLM(chunks=["Hello"])
+    service: ChatService = ChatService(llm_client=scripted_llm)
+
+    async for _ in service.stream("What is a Pod?"):
+        pass
+
+    history_copy : FrozenList[BaseMessage] = await service.get_chat_history()
+
+    original_content: str = str(history_copy[1].content)
+    history_copy[1].content = "mutated content"
+
+    internal_history: FrozenList[BaseMessage] = await service.get_chat_history()
+    assert internal_history[1].content == original_content, (
+        "Mutating the message content in the returned history should not affect the internal history"
+    )
+    return None
