@@ -6,7 +6,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from kube_sentinel.agent.chat_service import ChatService
-from kube_sentinel.agent.errors import ChatStreamError
+from kube_sentinel.agent.errors import ChatStreamError, ChatProviderError
 
 
 class ScriptedLLM:
@@ -269,8 +269,38 @@ async def test_stream_empty_input() -> None:
 
     history = await service.get_chat_history()
     assert len(
-        history) == 1, "History should start with only the system message"
+            history) == 1, "History should start with only the system message"
     assert isinstance(history[0],
                       SystemMessage), "First message should be a SystemMessage"
 
     return None
+
+
+@pytest.mark.asyncio
+async def test_stream_with_llm_error() -> None:
+    """
+    Test that ChatService raises ChatProviderError when the LLM raises
+    a generic exception during streaming, and rolls back history.
+
+    This test validates:
+    1. ChatProviderError is raised on LLM provider failure
+    2. The original error is wrapped (chained) inside ChatProviderError
+    3. History is rolled back — user message is not persisted on
+    failure
+    """
+    scripted_llm = ScriptedLLM(exc=Exception("LLM provider error"))
+    service: ChatService = ChatService(llm_client=scripted_llm)
+    with pytest.raises(ChatProviderError) as exception_info:
+        async for _ in service.stream("What is a Pod?"):
+            pass
+
+    # Verify the original cause is chained onto the raised error
+    assert exception_info.value.__cause__ is not None
+    assert "LLM provider error" in str(exception_info.value.__cause__)
+
+    # Verify history was rolled back - only system message should remain
+    history = await service.get_chat_history()
+    assert len(
+            history) == 1, "History should be rolled back after the error to just the system message"
+    assert isinstance(history[0],
+                      SystemMessage), "First message should be a SystemMessage"
