@@ -1,9 +1,12 @@
+import asyncio
 from collections.abc import AsyncGenerator
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from frozenlist import FrozenList
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, \
+    BaseMessage
 
 from kube_sentinel.agent.chat_service import ChatService
 from kube_sentinel.agent.errors import ChatStreamError, ChatProviderError
@@ -13,12 +16,13 @@ class ScriptedLLM:
     def __init__(
             self,
             chunks: list[str] | None = None,
-            exc: Exception | None = None,
+            exc: BaseException | None = None,
     ) -> None:
         self.chunks = chunks or []
         self._exc = exc
 
-    async def astream(self, *args: Any, **kwargs: Any) -> AsyncGenerator[Any]:
+    async def astream(self, *args: Any, **kwargs: Any) -> AsyncGenerator[
+        Any, None]:
         for chunk in self.chunks:
             yield SimpleNamespace(content=chunk)
         if self._exc is not None:
@@ -30,8 +34,8 @@ async def test_history_initialization() -> None:
     """Test that the chat history initializes with the
     correct system prompt and structure."""
     # Initialize service, inspect baseline invariant
-    service = ChatService()
-    history = await service.get_chat_history()
+    service: ChatService = ChatService()
+    history: FrozenList[BaseMessage] = await service.get_chat_history()
     assert len(history) == 1, "History should start with one system message"
 
     assert isinstance(history[0], SystemMessage), (
@@ -55,14 +59,14 @@ async def test_stream_success() -> None:
 
     # This simulates a realistic streaming behavior where the LLM provider
     # sends response content in small pieces (e.g., "Hello", " ", "world", "!")
-    chunks = ["Hello", " ", "!"]
-    scripted_llm = ScriptedLLM(chunks=chunks)
+    chunks: list[str] = ["Hello", " ", "!"]
+    scripted_llm: ScriptedLLM = ScriptedLLM(chunks=chunks)
 
-    service = ChatService(llm_client=scripted_llm)
+    service: ChatService = ChatService(llm_client=scripted_llm)
 
     collected_tokens: list[str] = []
 
-    user_input = "What is Kubernetes?"
+    user_input: str = "What is Kubernetes?"
 
     async for token in service.stream(user_input):
         assert isinstance(token, str), "Streamed token must be a string"
@@ -75,13 +79,13 @@ async def test_stream_success() -> None:
 
     # This validates that streaming works end-to-end
     # from chunk to final content
-    expected_full_response = "".join(chunks)
-    actual_full_response = "".join(collected_tokens)
+    expected_full_response: str = "".join(chunks)
+    actual_full_response: str = "".join(collected_tokens)
     assert actual_full_response == expected_full_response, (
         f"Full response '{actual_full_response}' does not match expected '{expected_full_response}'"
     )
 
-    history = await service.get_chat_history()
+    history: FrozenList[BaseMessage] = await service.get_chat_history()
 
     assert len(history) == 3, (
         f"History should contain 3 messages (user input, system prompt,"
@@ -123,25 +127,27 @@ async def test_stream_appends_to_history() -> None:
     4. Multiple calls accumulate messages correctly
     """
 
-    first_ai_response = "Response 1"
+    first_ai_response: str = "Response 1"
 
-    scripted_llm = ScriptedLLM([first_ai_response])
+    scripted_llm: ScriptedLLM = ScriptedLLM([first_ai_response])
 
-    service = ChatService(llm_client=scripted_llm)
+    service: ChatService = ChatService(llm_client=scripted_llm)
 
-    history_before_first_input = await service.get_chat_history()
+    history_before_first_input: FrozenList[
+        BaseMessage] = await service.get_chat_history()
     assert len(history_before_first_input) == 1, (
         "History should start with only the system message"
     )
 
-    user_input_1 = "First question?"
+    user_input_1: str = "First question?"
 
     async for _ in service.stream(user_input_1):
         pass
 
     # VERIFY: History after first stream
     # Should have: [SystemMessage, HumanMessage(input), AIMessage(response)]
-    history_after_first_input = await service.get_chat_history()
+    history_after_first_input: FrozenList[
+        BaseMessage] = await service.get_chat_history()
 
     assert len(history_after_first_input) == 3, (
         "After first input, history should have 3 messages"
@@ -155,10 +161,10 @@ async def test_stream_appends_to_history() -> None:
         f"After first input, third message should be the AI's response with content '{first_ai_response}'"
     )
 
-    second_ai_response = "Response 2"
+    second_ai_response: str = "Response 2"
 
     scripted_llm.chunks = [second_ai_response]
-    user_input_2 = "Second question?"
+    user_input_2: str = "Second question?"
 
     async for _ in service.stream(user_input_2):
         pass
@@ -166,7 +172,8 @@ async def test_stream_appends_to_history() -> None:
     # VERIFY: History after second stream
     # Should have: [SystemMessage, HumanMessage(1), AIMessage(1), HumanMessage(2), AIMessage(2)]
 
-    history_after_second_input = await service.get_chat_history()
+    history_after_second_input: FrozenList[
+        BaseMessage] = await service.get_chat_history()
 
     assert len(history_after_second_input) == 5, (
         "After second input, history should have 5 messages"
@@ -202,7 +209,7 @@ async def test_stream_appends_to_history() -> None:
 
 
 @pytest.mark.asyncio
-async def test_clear_chat_history():
+async def test_clear_chat_history() -> None:
     """
     Test that ChatService correctly clears chat history and resets
     to just the system message.
@@ -212,12 +219,13 @@ async def test_clear_chat_history():
     2. After clear_chat_history(), history is reset to only system message
     3. Clearing multiple times maintains the invariant
     """
-    scripted_llm = ScriptedLLM(chunks=["Response 1"])
-    service = ChatService(llm_client=scripted_llm)
+    scripted_llm: ScriptedLLM = ScriptedLLM(chunks=["Response 1"])
+    service: ChatService = ChatService(llm_client=scripted_llm)
 
     async for _ in service.stream("First question?"):
         pass
-    history_before_cleanup = await service.get_chat_history()
+    history_before_cleanup: FrozenList[
+        BaseMessage] = await service.get_chat_history()
 
     assert isinstance(history_before_cleanup[0],
                       SystemMessage), "The first message should be a SystemMessage"
@@ -226,7 +234,8 @@ async def test_clear_chat_history():
             history_before_cleanup) == 3, "History should have three messages before cleanup"
 
     await service.clear_chat_history()
-    history_after_first_cleanup = await service.get_chat_history()
+    history_after_first_cleanup: FrozenList[
+        BaseMessage] = await service.get_chat_history()
     assert len(
             history_after_first_cleanup
     ) == 1, "History should have one system message after cleanup"
@@ -235,7 +244,8 @@ async def test_clear_chat_history():
     )
 
     await service.clear_chat_history()
-    history_after_second_cleanup = await service.get_chat_history()
+    history_after_second_cleanup: FrozenList[
+        BaseMessage] = await service.get_chat_history()
     assert len(
             history_after_second_cleanup
     ) == 1, "History should have one system message after second cleanup"
@@ -255,7 +265,7 @@ async def test_stream_empty_input() -> None:
     3. Error message is descriptive
     4. No messages are added to history on error
     """
-    service = ChatService(llm_client=ScriptedLLM())
+    service: ChatService = ChatService(llm_client=ScriptedLLM())
     with pytest.raises(ChatStreamError) as exception_info:
         async for _ in service.stream(""):
             pass
@@ -267,7 +277,7 @@ async def test_stream_empty_input() -> None:
 
     assert str(exception_info.value) == "User input cannot be empty"
 
-    history = await service.get_chat_history()
+    history: FrozenList[BaseMessage] = await service.get_chat_history()
     assert len(
             history) == 1, "History should start with only the system message"
     assert isinstance(history[0],
@@ -288,7 +298,7 @@ async def test_stream_with_llm_error() -> None:
     3. History is rolled back — user message is not persisted on
     failure
     """
-    scripted_llm = ScriptedLLM(exc=Exception("LLM provider error"))
+    scripted_llm: ScriptedLLM = ScriptedLLM(exc=Exception("LLM provider error"))
     service: ChatService = ChatService(llm_client=scripted_llm)
     with pytest.raises(ChatProviderError) as exception_info:
         async for _ in service.stream("What is a Pod?"):
@@ -299,8 +309,36 @@ async def test_stream_with_llm_error() -> None:
     assert "LLM provider error" in str(exception_info.value.__cause__)
 
     # Verify history was rolled back - only system message should remain
-    history = await service.get_chat_history()
+    history: FrozenList[BaseMessage] = await service.get_chat_history()
     assert len(
             history) == 1, "History should be rolled back after the error to just the system message"
     assert isinstance(history[0],
                       SystemMessage), "First message should be a SystemMessage"
+
+
+@pytest.mark.asyncio
+async def test_stream_with_cancelled_error() -> None:
+    """
+    Test that ChatService re-raises CancelledError and
+    rolls back history when a stream is canceled.
+
+    This test validates:
+    1. asyncio.CancelledError propagates without being wrapped
+    2. History is rolled back — a user message is not
+    persisted on cancellation
+    """
+    scripted_llm: ScriptedLLM = ScriptedLLM(exc=asyncio.CancelledError())
+    service: ChatService = ChatService(llm_client=scripted_llm)
+
+    with pytest.raises(asyncio.CancelledError):
+        async for _ in service.stream("What is a namespace?"):
+            pass
+
+    history: FrozenList[BaseMessage] = await service.get_chat_history()
+
+    assert len(history) == 1, ("History should be rolled back after " +
+                               "'asyncio.CancelledError'")
+    assert isinstance(history[0], SystemMessage), (
+        "The first message should be a SystemMessage"
+    )
+    return None
