@@ -1,6 +1,6 @@
 # ChatService Unit Tests - Test Cases
 
-## Implementation Status: 5/16 (31.25%)
+## Implementation Status: 7/16 (43.75%)
 
 ## Implemented Tests ✅
 - ✅ `test_history_initialization` – Verifies history starts with one system message
@@ -8,13 +8,14 @@
 - ✅ `test_stream_appends_to_history` – Verify human messages and AI responses are added to history correctly
 - ✅ `test_clear_chat_history` – Verify history is reset to just the system message
 - ✅ `test_stream_empty_input` – Verify `ChatStreamError` is raised for empty/whitespace user input
+- ✅ `test_stream_with_llm_error` – Verify `ChatProviderError` is raised when LLM provider encounters an error
+- ✅ `test_stream_with_cancelled_error` – Verify rollback occurs when stream is cancelled via `asyncio.CancelledError`
 
 ## Pending Test Cases ⏳
 
 ### Core Functionality
 
 ### Error Handling
-- ⏳ `test_stream_with_llm_error` – Verify `ChatProviderError` is raised when LLM provider encounters an error
 - ⏳ `test_stream_with_cancelled_error` – Verify rollback occurs when stream is cancelled via `asyncio.CancelledError`
 - ⏳ `test_stream_with_validation_error` – Verify `ChatStreamError` is raised on response validation failure
 
