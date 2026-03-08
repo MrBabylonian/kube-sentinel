@@ -39,8 +39,8 @@
 ---
 
 ## Milestone ID: M1
-**Title:** Chat Functionality 100% In-Memory  
-**Status:** `IN_PROGRESS`
+**Title:** Chat Functionality 100% In-Memory
+**Status:** `DONE`
 
 ### Tasks
 1. ✅ Finalize chat service contract (`stream`, `clear_history`, `get_chat_history` returning FrozenList).
@@ -50,11 +50,16 @@
 5. ✅ Streaming update path mutates content field via `full_response` accumulation.
 6. ✅ Add explicit error handling categories (ChatConfigurationError, ChatProviderError, ChatStreamError).
 7. ✅ Add terminal REPL harness for raw chat interaction (repl.py exists).
-8. 🔄 Add unit tests for history initialization, ordering, reset, and failure rollback.
+8. ✅ Add unit tests for history initialization, ordering, reset, and failure rollback.
    - ✅ test_history_initialization DONE
    - ✅ test_stream_success DONE
-   - 🔄 test_stream_appends_to_history IN_PROGRESS
-9. 🔄 Add streaming tests for token aggregation and stream finalization (in test_stream_success).
+   - ✅ test_stream_appends_to_history DONE
+   - ✅ test_clear_chat_history DONE
+   - ✅ test_stream_empty_input DONE
+   - ✅ test_stream_with_llm_error DONE
+   - ✅ test_stream_with_cancelled_error DONE
+   - ✅ test_history_independence DONE
+9. ✅ Add streaming tests for token aggregation and stream finalization (in test_stream_success).
 
 ### DoD
 1. In-memory multi-turn chat works reliably in terminal.
@@ -72,12 +77,23 @@
 
 ### Evidence
 1. Test run output summary (`passed/failed`) for `M1` test set:
-   - Current: 2 tests passing (test_history_initialization, test_stream_success)
-   - In progress: test_stream_appends_to_history (chunk accumulation fix)
-   - Remaining: test_stream_empty_input, test_clear_chat_history, test_stream_with_llm_error, test_extract_token_text_* (5 more tests planned)
-2. Terminal transcript snippets for manual checks (pending multi-turn REPL validation).
+   - 8/8 unit tests passing locally
+   - test_history_initialization ✅
+   - test_stream_success ✅
+   - test_stream_appends_to_history ✅
+   - test_clear_chat_history ✅
+   - test_stream_empty_input ✅
+   - test_stream_with_llm_error ✅
+   - test_stream_with_cancelled_error ✅
+   - test_history_independence ✅
+   - Deferred to integration suite: test_extract_token_text_* (5 tests)
+   - Deferred (already covered): test_rollback_user_turn_removes_message, test_rollback_user_turn_no_message_available, test_multiple_sequential_streams
+   - Skipped (blocked): test_stream_with_validation_error (needs structured output support)
+2. Terminal validation via `scripts/m1_manual_validation.py` — all 3 checks passed:
+   - Multi-turn context retention ✅
+   - Reset behavior ✅
+   - Error recovery ✅
 3. Known non-blocking issues:
-   - ChatService._llm attribute redeclaration warning (type annotation fix pending)
    - Pydantic V1 deprecation warning with Python 3.14 (langchain_core issue, not blocking)
 
 ---
