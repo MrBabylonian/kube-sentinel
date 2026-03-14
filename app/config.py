@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     DATABASE_URL: Annotated[SecretStr, Field(...)]
     DATABASE_URL_TEST: Annotated[SecretStr | None, Field(default=None)]
     LOG_LEVEL: Annotated[
-        Literal["FATAL", "ERROR", "WARNING", "INFO", "DEBUG"],
-        Field(...),
+        Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"],
+        Field(default="NOTSET"),
     ]
     ENVIRONMENT: Annotated[
         Literal["PRODUCTION", "DEVELOPMENT"], Field(default="DEVELOPMENT")
