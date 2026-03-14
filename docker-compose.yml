@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:18.1-alpine3.23
+    environment:
+      POSTGRES_USER: kube_sentinel
+      POSTGRES_PASSWORD: kube_sentinel_dev
+      POSTGRES_DB: kube_sentinel
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kube_sentinel"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres_test:
+    image: postgres:18.1-alpine3.23
+    environment:
+      POSTGRES_USER: kube_sentinel_test
+      POSTGRES_PASSWORD: kube_sentinel_test
+      POSTGRES_DB: kube_sentinel_test
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kube_sentinel_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
