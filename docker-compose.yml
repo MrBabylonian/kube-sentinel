@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: kube_sentinel_dev
       POSTGRES_DB: kube_sentinel
     ports:
-      - "127.0.0.1:5432:5433"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +22,7 @@ services:
       POSTGRES_PASSWORD: kube_sentinel_test
       POSTGRES_DB: kube_sentinel_test
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U kube_sentinel_test"]
       interval: 5s
